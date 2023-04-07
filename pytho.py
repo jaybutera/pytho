@@ -17,7 +17,7 @@ def embed_docs(data_dir: str, name: str):
 
 def main(docs):
     while True:
-        query = input("> ")
+        query = input("")
         answer = docs.query(query)
         print(answer.formatted_answer)
 
