@@ -6,6 +6,15 @@ from paperqa import Docs
 import os
 import sys
 import struct
+import socket
+
+def recv_msg(sock) -> str:
+    length_binary = sock.recv(4)
+    # Extract the 32-bit unsigned integer representing the length
+    length = struct.unpack('>I', length_binary)[0]
+    # Extract the UTF-8 binary data
+    utf8_binary = sock.recv(length)
+    return utf8_binary.decode('utf-8')
 
 def encode_string_with_length(s: str) -> bytes:
     # Convert the string to UTF-8 binary
@@ -20,27 +29,6 @@ def encode_string_with_length(s: str) -> bytes:
     # Return the combined binary data
     return length_binary + utf8_binary
 
-def read_n_bytes(n):
-    data = sys.stdin.buffer.read(n)
-    print(f'n: {n}, len data: {len(data)}', file=sys.stderr)
-    if len(data) != n:
-        raise ValueError("Unexpected end of input")
-    return data
-
-def receive_message():
-    # Read the 4-byte length prefix
-    length_data = read_n_bytes(4)
-    print('recieved length bytes', file=sys.stderr)
-    
-    # Unpack the length and read the message data
-    length = struct.unpack('!I', length_data)[0]
-    data = read_n_bytes(length)
-
-    # Decode the UTF-8 message
-    message = data.decode('utf-8')
-    return message
-
-
 def embed_docs(data_dir: str, name: str):
     files = [os.path.join(data_dir, file) for file in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, file))]
 
@@ -50,20 +38,23 @@ def embed_docs(data_dir: str, name: str):
 
     return docs
 
-def main(docs, use_utf8):
-    while True:
-        if use_utf8:
-            query = receive_message()
-            print(query, file=sys.stderr)
-            #answer = docs.query(query)
-            answer = 'hello\nworld\n'
-            #print(encode_string_with_length(answer.formatted_answer))
-            print(encode_string_with_length(answer), file=sys.stderr)
-            print(encode_string_with_length(answer))
-        else:
-            query = input("> ")
-            answer = docs.query(query)
-            print(answer.formatted_answer)
+def main(docs, port):
+    conn = None
+    if port != None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('localhost', port))
+        sock.listen(1)
+        conn, addr = sock.accept()
+        with conn:
+            while True:
+                query = recv_msg(conn)
+                answer = docs.query(query)
+                #answer = 'hello\nworld\n'
+                conn.sendall(encode_string_with_length(answer.formatted_answer))
+    else:
+        query = input("> ")
+        answer = docs.query(query)
+        print(answer.formatted_answer)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build embeddings and query them')
@@ -71,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('command', nargs='?', default='default_command', help='Command (optional)')
     parser.add_argument('-n', '--name', required=True, help='Name of the embeddings database file')
     parser.add_argument('-d', '--data_dir', help='Path to the directory containing data to build an embedding')
-    parser.add_argument('-e', '--encode_utf8', action='store_true', help='Expect utf8 length-prefixed encoding on input and produce it on output')
+    parser.add_argument('-p', '--port', type=int, help='Establish a socket connection on the port instead of stdin. Messages are length pre-fixed and utf8')
 
     args = parser.parse_args()
 
@@ -94,7 +85,7 @@ if __name__ == '__main__':
 
         with open(f'{path}', 'rb') as f:
             docs = pickle.load(f)
-            main(docs, args.encode_utf8)
+            main(docs, args.port)
     else:
         print(f"Unknown command '{args.command}' with model name '{args.name}'.")
 
