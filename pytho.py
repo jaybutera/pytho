@@ -20,18 +20,9 @@ def encode_string_with_length(s: str) -> bytes:
     # Return the combined binary data
     return length_binary + utf8_binary
 
-'''
-def recv_msg(sock) -> str:
-    length_binary = sock.recv(4)
-    # Extract the 32-bit unsigned integer representing the length
-    length = struct.unpack('>I', length_binary)[0]
-    # Extract the UTF-8 binary data
-    utf8_binary = sock.recv(length)
-    return utf8_binary.decode('utf-8')
-'''
-
 def read_n_bytes(n):
     data = sys.stdin.buffer.read(n)
+    print(f'n: {n}, len data: {len(data)}', file=sys.stderr)
     if len(data) != n:
         raise ValueError("Unexpected end of input")
     return data
@@ -39,6 +30,7 @@ def read_n_bytes(n):
 def receive_message():
     # Read the 4-byte length prefix
     length_data = read_n_bytes(4)
+    print('recieved length bytes', file=sys.stderr)
     
     # Unpack the length and read the message data
     length = struct.unpack('!I', length_data)[0]
@@ -62,8 +54,12 @@ def main(docs, use_utf8):
     while True:
         if use_utf8:
             query = receive_message()
-            answer = docs.query(query)
-            print(encode_string_with_length(answer.formatted_answer))
+            print(query, file=sys.stderr)
+            #answer = docs.query(query)
+            answer = 'hello\nworld\n'
+            #print(encode_string_with_length(answer.formatted_answer))
+            print(encode_string_with_length(answer), file=sys.stderr)
+            print(encode_string_with_length(answer))
         else:
             query = input("> ")
             answer = docs.query(query)
